@@ -8,7 +8,8 @@ import {
   SettingOutlined,
   DatabaseOutlined,
   ApartmentOutlined,
-  NodeIndexOutlined
+  NodeIndexOutlined,
+  ExperimentOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -43,6 +44,12 @@ const AppSidebar: React.FC = () => {
         </Menu.Item>
         <Menu.Item key="/rule-element-hyperedges" icon={<NodeIndexOutlined />}>
           <Link to="/rule-element-hyperedges">规则-要素关系</Link>
+        </Menu.Item>
+        <Menu.Item key="scheme-rule-hyperedges" icon={<ApartmentOutlined />}>
+          <Link to="/scheme-rule-hyperedges">方案-规则关系</Link>
+        </Menu.Item>
+        <Menu.Item key="scheme-generator" icon={<ExperimentOutlined />}>
+          <Link to="/scheme-generator">方案生成器</Link>
         </Menu.Item>
       </Menu>
     </Sider>

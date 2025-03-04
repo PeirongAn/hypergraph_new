@@ -31,6 +31,10 @@ export const connectWebSocket = () => {
   return socket;
 };
 
+// 简单的缓存机制
+const cache: Record<string, { data: any, timestamp: number }> = {};
+const CACHE_DURATION = 60000; // 缓存有效期，单位毫秒
+
 // 超图API
 export const hypergraphApi = {
   // 获取所有超图
@@ -105,9 +109,25 @@ export const hypergraphApi = {
     return response.data;
   },
   
-  // 获取所有共享规则
+  // 获取所有共享规则（带缓存）
   getAllSharedRules: async () => {
+    const cacheKey = 'all_shared_rules';
+    const now = Date.now();
+    
+    // 如果缓存存在且未过期，直接返回缓存数据
+    if (cache[cacheKey] && (now - cache[cacheKey].timestamp) < CACHE_DURATION) {
+      return cache[cacheKey].data;
+    }
+    
+    // 否则请求新数据
     const response = await api.get('/api/hypergraph/rules');
+    
+    // 更新缓存
+    cache[cacheKey] = {
+      data: response.data,
+      timestamp: now
+    };
+    
     return response.data;
   },
   
@@ -154,6 +174,18 @@ export const hypergraphApi = {
   // 获取规则到要素的超边
   getRuleElementHyperedges: async () => {
     const response = await api.get('/api/hypergraph/rule-element-hyperedges');
+    return response.data;
+  },
+  
+  // 获取方案到规则的超边
+  getSchemeRuleHyperedges: async () => {
+    const response = await api.get('/api/hypergraph/scheme-rule-hyperedges');
+    return response.data;
+  },
+  
+  // 创建新方案
+  createScheme: async (schemeData: any) => {
+    const response = await api.post('/api/hypergraph/schemes', schemeData);
     return response.data;
   },
 };

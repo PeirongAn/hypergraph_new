@@ -11,6 +11,10 @@ import ElementsManagement from './pages/ElementsManagement';
 import RulesManagement from './pages/RulesManagement';
 import RuleElementHyperedgeListPage from './pages/RuleElementHyperedgeListPage';
 import RuleElementHyperedgePage from './pages/RuleElementHyperedgePage';
+import SchemeRuleHyperedgeListPage from './pages/SchemeRuleHyperedgeListPage';
+import SchemeRuleHyperedgePage from './pages/SchemeRuleHyperedgePage';
+import SchemeGenerator from './pages/SchemeGenerator';
+import SchemePreview from './pages/SchemePreview';
 import './App.css';
 
 const { Content } = Layout;
@@ -39,6 +43,10 @@ const App: React.FC = () => {
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/rule-element-hyperedges" element={<RuleElementHyperedgeListPage />} />
                 <Route path="/rule-element-hyperedges/:id" element={<RuleElementHyperedgePage />} />
+                <Route path="/scheme-rule-hyperedges" element={<SchemeRuleHyperedgeListPage />} />
+                <Route path="/scheme-rule-hyperedges/:id" element={<SchemeRuleHyperedgePage />} />
+                <Route path="/scheme-generator" element={<SchemeGenerator />} />
+                <Route path="/schemes/preview" element={<SchemePreview />} />
               </Routes>
             </Content>
           </Layout>

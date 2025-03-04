@@ -1,11 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from routes.hypergraph import router as hypergraph_router
+from routes.scheme import router as scheme_router
 import uvicorn
 import logging
 from database import connect_to_mongodb, close_mongodb_connection
 from services.hypergraph_service import HypergraphService
 from services.db_service import DatabaseService
+from typing import Dict, Any
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -40,7 +42,7 @@ async def startup_event():
     await connect_to_mongodb()
     
     # 打印所有路由
-    routes = [{"path": route.path, "name": route.name} for route in app.routes]
+    routes = [{"path": route.path, "name": route.name, "methods": route.methods} for route in app.routes]
     logger.info(f"注册的路由: {routes}")
     
     # 迁移现有数据到数据库

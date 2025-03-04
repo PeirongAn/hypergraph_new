@@ -209,60 +209,14 @@ class Rule:
         )
 
 class Scheme:
-    """方案类，表示超图中的评估方案"""
-    def __init__(self, name: str, description: str = ""):
-        self.id = name.lower().replace(" ", "_")  # 生成方案ID
+    """方案类，表示一组规则及其权重"""
+    def __init__(self, name: str, description: str = "", rule_weights: Dict[str, float] = None):
+        self.id = str(uuid4())
         self.name = name
         self.description = description
-        self.rules: Dict[str, Rule] = {}  # 方案包含的规则
-        self.score = 0.0  # 方案得分
-        self.selected_elements_count = 0  # 选中的要素数量
-    
-    def add_rule(self, rule: Rule) -> None:
-        """添加规则到方案"""
-        self.rules[rule.id] = rule
-    
-    def evaluate(self, elements: List[Element]) -> Dict[str, Any]:
-        """评估方案，计算得分并选择要素"""
-        selected_elements = []
-        total_score = 0.0
-        
-        for element in elements:
-            element_score = 0.0
-            element_rule_scores = {}
-            
-            # 准备要素属性，包括顶层属性和 attributes 中的属性
-            element_attrs = element.to_dict()
-            
-            # 对每个规则进行评估
-            for rule_id, rule in self.rules.items():
-                # 应用规则
-                rule_score = rule.apply(element_attrs)
-                if rule_score > 0:
-                    element_score += rule_score
-                    element_rule_scores[rule_id] = rule_score
-            
-            if element_score > 0:
-                # 创建要素的副本，添加得分信息
-                element_copy = element.to_dict()
-                element_copy["score"] = element_score
-                element_copy["rule_scores"] = element_rule_scores
-                
-                selected_elements.append(element_copy)
-                total_score += element_score
-        
-        # 计算方案总得分
-        self.score = total_score
-        self.selected_elements_count = len(selected_elements)
-        
-        # 返回评估结果
-        return {
-            "scheme_id": self.id,
-            "scheme_name": self.name,
-            "scheme_description": self.description,
-            "scheme_score": self.score,
-            "selected_elements": selected_elements
-        }
+        self.rule_weights: Dict[str, float] = rule_weights or {}  # 规则ID到权重的映射
+        self.created_at = datetime.now()
+        self.updated_at = datetime.now()
     
     def to_dict(self) -> Dict[str, Any]:
         """将方案转换为字典"""
@@ -270,9 +224,9 @@ class Scheme:
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "rules": [rule.to_dict() for rule in self.rules.values()],
-            "score": self.score,
-            "selected_elements_count": self.selected_elements_count
+            "rule_weights": self.rule_weights,
+            "created_at": self.created_at.isoformat(),
+            "updated_at": self.updated_at.isoformat()
         }
 
 class Hypergraph:
@@ -308,6 +262,68 @@ class Hypergraph:
     def get_all_schemes(self) -> List[Dict[str, Any]]:
         """获取所有方案"""
         return [scheme.to_dict() for scheme in self.schemes.values()]
+
+    def evaluate_scheme(self, scheme_id: str) -> Dict[str, Any]:
+        """评估特定方案"""
+        scheme = self.schemes.get(scheme_id)
+        if not scheme:
+            return {"error": f"方案 {scheme_id} 不存在"}
+        
+        # 获取所有要素
+        elements = list(self.elements.values())
+        
+        # 评估结果
+        selected_elements = []
+        total_score = 0.0
+        
+        # 获取方案使用的规则及其权重
+        rule_weights = scheme.rule_weights
+        
+        for element in elements:
+            element_score = 0.0
+            element_rule_scores = {}
+            
+            # 准备要素属性
+            element_attrs = element.to_dict()
+            
+            # 对每个规则进行评估
+            for rule_id, weight in rule_weights.items():
+                rule = self.rules.get(rule_id)
+                if not rule:
+                    continue
+                    
+                # 应用规则
+                rule_score = rule.apply(element_attrs)
+                if rule_score > 0:
+                    # 应用权重
+                    weighted_score = rule_score * weight
+                    element_score += weighted_score
+                    element_rule_scores[rule_id] = weighted_score
+            
+            if element_score > 0:
+                # 创建要素的副本，添加得分信息
+                element_copy = element.to_dict()
+                element_copy["score"] = element_score
+                element_copy["rule_scores"] = element_rule_scores
+                
+                selected_elements.append(element_copy)
+                total_score += element_score
+        
+        # 返回评估结果
+        return {
+            "scheme_id": scheme.id,
+            "scheme_name": scheme.name,
+            "scheme_description": scheme.description,
+            "scheme_score": total_score,
+            "selected_elements": selected_elements
+        }
+
+    def evaluate_all_schemes(self) -> Dict[str, Dict[str, Any]]:
+        """评估所有方案"""
+        results = {}
+        for scheme_id, scheme in self.schemes.items():
+            results[scheme_id] = self.evaluate_scheme(scheme_id)
+        return results
 
 class HypergraphLayer:
     """超图层，表示超图的一个层次"""
@@ -363,18 +379,6 @@ class Hypergraph:
         """添加方案"""
         self.schemes[scheme.id] = scheme
     
-    def evaluate_scheme(self, scheme_id: str) -> Dict[str, Any]:
-        """评估特定方案"""
-        scheme = self.schemes.get(scheme_id)
-        if not scheme:
-            return {"error": f"方案 {scheme_id} 不存在"}
-        
-        # 获取所有要素
-        elements = list(self.elements.values())
-        
-        # 评估方案
-        return scheme.evaluate(elements)
-    
     def evaluate_all_schemes(self) -> Dict[str, Dict[str, Any]]:
         """评估所有方案"""
         results = {}
@@ -427,7 +431,7 @@ class RuleElementHyperedge:
         """添加满足规则的要素及其得分"""
         self.elements.append({
             "element_id": element["id"],
-            "element_name": element.get("name", element["id"]),
+            "element_name": element.get("attributes", element["id"]).get("name", element["id"]),
             "element_type": element["type"],
             "score": score
         })
@@ -442,4 +446,31 @@ class RuleElementHyperedge:
             "elements_count": len(self.elements),
             "elements": self.elements,
             "total_score": self.score
+        }
+
+class SchemeRuleHyperedge:
+    """方案到规则的超边，表示方案与其使用的规则之间的关系"""
+    def __init__(self, scheme_id: str, scheme_name: str):
+        self.id = f"scheme_edge_{scheme_id}"
+        self.scheme_id = scheme_id
+        self.scheme_name = scheme_name
+        self.rules = []  # 方案使用的规则列表
+    
+    def add_rule(self, rule: Dict[str, Any], weight: float):
+        """添加方案使用的规则及其权重"""
+        self.rules.append({
+            "rule_id": rule["id"],
+            "rule_name": rule["name"],
+            "weight": weight,
+            "description": rule.get("description", "")
+        })
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "id": self.id,
+            "scheme_id": self.scheme_id,
+            "scheme_name": self.scheme_name,
+            "rules_count": len(self.rules),
+            "rules": self.rules
         } 

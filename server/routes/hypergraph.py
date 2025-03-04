@@ -121,6 +121,64 @@ async def get_rule_element_hyperedges():
     """获取规则到要素的超边，表示每个规则影响的所有要素"""
     return await hypergraph_service.calculate_rule_element_hyperedges()
 
+# 路由：获取方案到规则的超边
+@router.get("/scheme-rule-hyperedges", response_model=List[Dict[str, Any]])
+async def get_scheme_rule_hyperedges():
+    """获取方案到规则的超边，表示每个方案使用的所有规则"""
+    return await hypergraph_service.calculate_scheme_rule_hyperedges()
+
+
+@router.get("/schemes", response_model=List[Dict[str, Any]])
+async def get_all_schemes():
+    """获取所有方案，不关联到特定超图"""
+    if not hasattr(hypergraph_service, 'standalone_schemes'):
+        hypergraph_service.standalone_schemes = {}
+    
+    schemes = [scheme.to_dict() for scheme in hypergraph_service.standalone_schemes.values()]
+    return schemes
+
+# 路由：获取特定方案（独立于超图）
+@router.get("/schemes/{scheme_id}", response_model=Dict[str, Any])
+async def get_scheme(scheme_id: str):
+    """获取特定方案，不关联到特定超图"""
+    if not hasattr(hypergraph_service, 'standalone_schemes'):
+        hypergraph_service.standalone_schemes = {}
+    
+    scheme = hypergraph_service.standalone_schemes.get(scheme_id)
+    if not scheme:
+        raise HTTPException(status_code=404, detail=f"方案 {scheme_id} 不存在")
+    
+    return scheme.to_dict()
+
+# 路由：评估特定方案（独立于超图）
+@router.get("/schemes/{scheme_id}/evaluate", response_model=Dict[str, Any])
+async def evaluate_scheme(scheme_id: str):
+    """评估特定方案，不关联到特定超图"""
+    result = await hypergraph_service.evaluate_scheme_standalone(scheme_id)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    
+    return result
+
+# 路由：创建新方案（独立于超图）
+@router.post("/schemes", response_model=Dict[str, Any], status_code=201)
+async def create_scheme(scheme_data: dict = Body(...)):
+    """创建新方案，不关联到特定超图"""
+    # 验证必要字段
+    if "name" not in scheme_data:
+        raise HTTPException(status_code=400, detail="方案名称不能为空")
+    
+    # 创建方案
+    scheme = await hypergraph_service.create_scheme_standalone(
+        scheme_data["name"],
+        scheme_data.get("description", ""),
+        scheme_data.get("rule_weights", {})
+    )
+    
+    if not scheme:
+        raise HTTPException(status_code=500, detail="创建方案失败")
+    
+    return scheme 
 # 超图特定的路由
 # 这些路由应该在共享要素和规则路由之后定义
 
@@ -187,29 +245,4 @@ async def get_all_rules(hypergraph_id: str):
     # 使用共享规则
     return hypergraph_service.get_all_rules()
 
-# 路由：获取超图的所有方案
-@router.get("/{hypergraph_id}/schemes", response_model=List[Dict[str, Any]])
-async def get_all_schemes(hypergraph_id: str):
-    hypergraph = hypergraph_service.get_hypergraph(hypergraph_id)
-    if not hypergraph:
-        raise HTTPException(status_code=404, detail=f"超图 {hypergraph_id} 不存在")
-    
-    return hypergraph.get_all_schemes()
-
-# 路由：评估超图的特定方案
-@router.get("/{hypergraph_id}/schemes/{scheme_id}/evaluate", response_model=Dict[str, Any])
-async def evaluate_scheme(hypergraph_id: str, scheme_id: str):
-    result = hypergraph_service.evaluate_scheme(hypergraph_id, scheme_id)
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    
-    return result
-
-# 路由：评估超图的所有方案
-@router.get("/{hypergraph_id}/schemes/evaluate-all", response_model=Dict[str, Dict[str, Any]])
-async def evaluate_all_schemes(hypergraph_id: str):
-    results = hypergraph_service.evaluate_all_schemes(hypergraph_id)
-    if isinstance(results, dict) and "error" in results:
-        raise HTTPException(status_code=404, detail=results["error"])
-    
-    return results 
+# 路由：获取所有方案（独立于超图）
