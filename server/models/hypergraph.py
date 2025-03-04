@@ -103,120 +103,65 @@ class Element:
         return self.attributes.get(key, default)
 
 class Rule:
-    """规则类，表示对要素属性的约束和计算"""
-    def __init__(self, name: str, rule_function: Callable[[Dict[str, Any]], float] = None, 
-                 weight: float = 1.0, affected_element_keys: List[str] = None,
-                 affected_element_types: List[str] = None,
-                 description: str = "", code: str = ""):
-        self.id = name.lower().replace(" ", "_")  # 使用名称生成ID
+    """规则类，表示评估要素的规则"""
+    def __init__(self, name: str, rule_function: Callable = None, weight: float = 1.0,
+                affected_element_keys: List[str] = None, affected_element_types: List[str] = None,
+                description: str = "", code: str = "", parameters: Dict[str, Any] = None):
+        self.id = f"rule_{uuid4().hex[:8]}"
         self.name = name
-        self.description = description
+        self.rule_function = rule_function
         self.weight = weight
-        self.affected_element_keys = affected_element_keys or []  # 规则影响的要素属性键
-        self.affected_element_types = affected_element_types or []  # 规则影响的要素类型
-        self.code = code  # 存储规则的代码字符串，方便前端展示和编辑
-        
-        # 规则函数：接收要素属性字典，返回规则评分（0表示不满足规则）
-        self.rule_function = rule_function or (lambda attrs: 1.0)
+        self.affected_element_keys = affected_element_keys or []
+        self.affected_element_types = affected_element_types or []
+        self.description = description
+        self.code = code
+        self.parameters = parameters or {}  # 存储规则的默认参数
     
-    def apply(self, element_attributes: Dict[str, Any]) -> float:
-        """应用规则到要素属性，返回规则评分"""
-        # 如果要素类型不匹配，直接返回0
-        element_type = element_attributes.get("type")
-        if self.affected_element_types and element_type and element_type not in self.affected_element_types:
-            return 0.0
-        
-        # 准备属性字典，处理可能的递归嵌套
-        attrs = self._prepare_attributes(element_attributes)
-        
-        # 检查要素是否包含所有必需的键
-        if self.affected_element_keys:
-            if not all(key in attrs for key in self.affected_element_keys):
-                return 0.0
-        
-        # 如果没有规则函数，返回0
+    def apply(self, element: Dict[str, Any], parameter_values: Dict[str, Any] = None) -> float:
+        """应用规则到要素，可以传入参数值"""
         if not self.rule_function:
             return 0.0
         
-        try:
-            # 应用规则函数并乘以权重
-            score = self.rule_function(attrs)
-            return score * self.weight if score > 0 else 0.0
-        except Exception as e:
-            print(f"规则 {self.name} 应用失败: {e}")
+        # 检查要素类型是否匹配
+        if self.affected_element_types and element.get("type") not in self.affected_element_types:
             return 0.0
-    
-    def _prepare_attributes(self, element_attributes: Dict[str, Any]) -> Dict[str, Any]:
-        """准备要素属性，处理可能的递归嵌套"""
-        # 创建属性字典的副本
-        attrs = dict(element_attributes)
         
-        # 处理可能的递归嵌套
-        if "attributes" in attrs:
-            nested_attrs = attrs["attributes"]
-            
-            # 如果嵌套的 attributes 是字典，则展开它
-            if isinstance(nested_attrs, dict):
-                # 将嵌套的属性合并到顶层
-                for key, value in nested_attrs.items():
-                    if key not in attrs or key == "attributes":  # 避免覆盖顶层属性，但允许覆盖 attributes
-                        attrs[key] = value
-                
-                # 如果还有更深层次的嵌套，递归处理
-                if "attributes" in nested_attrs and isinstance(nested_attrs["attributes"], dict):
-                    deeper_attrs = self._prepare_attributes(nested_attrs)
-                    for key, value in deeper_attrs.items():
-                        if key not in attrs or key == "attributes":
-                            attrs[key] = value
+        # 获取要素属性
+        attrs = element.get("attributes", {})
         
-        return attrs
+        # 合并默认参数和传入的参数值
+        params = self.parameters.copy()
+        if parameter_values:
+            params.update(parameter_values)
+        
+        # 调用规则函数，传入属性和参数
+        try:
+            return self.rule_function(attrs, params)
+        except Exception as e:
+            print(f"应用规则 {self.name} 失败: {e}")
+            return 0.0
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
             "id": self.id,
             "name": self.name,
-            "description": self.description,
             "weight": self.weight,
             "affected_element_keys": self.affected_element_keys,
             "affected_element_types": self.affected_element_types,
-            "code": self.code
+            "description": self.description,
+            "code": self.code,
+            "parameters": self.parameters
         }
-    
-    @classmethod
-    def from_dict(cls, rule_dict: Dict[str, Any]) -> 'Rule':
-        """从字典创建规则"""
-        # 尝试从代码字符串编译规则函数
-        rule_function = None
-        code = rule_dict.get("code", "")
-        if code:
-            try:
-                # 安全地编译和执行代码
-                namespace = {}
-                exec(f"def rule_function(attrs):\n{textwrap.indent(code, '    ')}", namespace)
-                rule_function = namespace["rule_function"]
-            except Exception as e:
-                print(f"编译规则代码失败: {e}")
-        
-        return cls(
-            name=rule_dict["name"],
-            rule_function=rule_function,
-            weight=rule_dict.get("weight", 1.0),
-            affected_element_keys=rule_dict.get("affected_element_keys", []),
-            affected_element_types=rule_dict.get("affected_element_types", []),
-            description=rule_dict.get("description", ""),
-            code=code
-        )
 
 class Scheme:
     """方案类，表示一组规则及其权重"""
-    def __init__(self, name: str, description: str = "", rule_weights: Dict[str, float] = None):
-        self.id = str(uuid4())
+    def __init__(self, name: str, description: str = "", rule_weights: Dict[str, Any] = None):
+        self.id = f"scheme_{uuid4().hex[:8]}"
         self.name = name
         self.description = description
-        self.rule_weights: Dict[str, float] = rule_weights or {}  # 规则ID到权重的映射
-        self.created_at = datetime.now()
-        self.updated_at = datetime.now()
+        self.created_at = datetime.now().isoformat()
+        self.rule_weights = rule_weights or {}
     
     def to_dict(self) -> Dict[str, Any]:
         """将方案转换为字典"""
@@ -224,9 +169,8 @@ class Scheme:
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "rule_weights": self.rule_weights,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "created_at": self.created_at,
+            "rule_weights": self.rule_weights
         }
 
 class Hypergraph:

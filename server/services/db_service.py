@@ -1,8 +1,8 @@
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from models.db_models import ElementDB, RuleDB
 from database import get_database
 import logging
+import uuid
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -155,78 +155,42 @@ class DatabaseService:
     @staticmethod
     async def create_rule(rule_data: Dict[str, Any]) -> Dict[str, Any]:
         """创建新规则"""
-        db = get_database()
+        rule_id = rule_data.get("id", rule_data["name"].lower().replace(" ", "_"))
         
-        # 生成规则ID
-        rule_id = rule_data.get("id") or rule_data["name"].lower().replace(" ", "_")
+        # 确保规则ID唯一
+        if rule_id in DatabaseService.rules:
+            # 如果ID已存在，生成一个新的唯一ID
+            rule_id = f"{rule_id}_{uuid.uuid4().hex[:8]}"
         
-        # 准备规则数据
+        # 创建规则记录
         rule = {
             "id": rule_id,
             "name": rule_data["name"],
             "weight": rule_data.get("weight", 1.0),
-            "affected_element_keys": rule_data.get("affected_element_keys", []),
             "affected_element_types": rule_data.get("affected_element_types", []),
+            "affected_element_keys": rule_data.get("affected_element_keys", []),
             "description": rule_data.get("description", ""),
             "code": rule_data.get("code", ""),
-            "created_at": datetime.now(),
-            "updated_at": datetime.now()
+            "parameters": rule_data.get("parameters", {})  # 添加参数字段
         }
         
-        # 插入数据库
-        await db.rules.insert_one(rule)
-        
-        # 移除MongoDB的_id字段
-        rule.pop("_id", None)
+        # 存储规则
+        DatabaseService.rules[rule_id] = rule
         
         return rule
     
     @staticmethod
     async def update_rule(rule_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """更新规则"""
-        db = get_database()
+        if rule_id not in DatabaseService.rules:
+            return None
         
-        # 查找规则
-        rule = await db.rules.find_one({"id": rule_id})
-        if not rule:
-            # 尝试通过名称查找
-            rule = await db.rules.find_one({"name": rule_id})
-            if not rule:
-                return None
+        # 更新规则字段
+        rule = DatabaseService.rules[rule_id]
+        for key, value in update_data.items():
+            rule[key] = value
         
-        # 准备更新数据
-        update_fields = {}
-        
-        if "name" in update_data:
-            update_fields["name"] = update_data["name"]
-        
-        if "weight" in update_data:
-            update_fields["weight"] = update_data["weight"]
-        
-        if "affected_element_keys" in update_data:
-            update_fields["affected_element_keys"] = update_data["affected_element_keys"]
-        
-        if "affected_element_types" in update_data:
-            update_fields["affected_element_types"] = update_data["affected_element_types"]
-        
-        if "description" in update_data:
-            update_fields["description"] = update_data["description"]
-        
-        if "code" in update_data:
-            update_fields["code"] = update_data["code"]
-        
-        update_fields["updated_at"] = datetime.now()
-        
-        # 更新数据库
-        await db.rules.update_one({"_id": rule["_id"]}, {"$set": update_fields})
-        
-        # 获取更新后的规则
-        updated_rule = await db.rules.find_one({"_id": rule["_id"]})
-        
-        # 移除MongoDB的_id字段
-        updated_rule.pop("_id", None)
-        
-        return updated_rule
+        return rule
     
     @staticmethod
     async def delete_rule(rule_id: str) -> bool:
@@ -294,6 +258,7 @@ class DatabaseService:
                 "affected_element_keys": rule.get("affected_element_keys", []),
                 "affected_element_types": rule["affected_element_types"],
                 "description": rule.get("description", ""),
+                "parameters": rule.get("parameters", {}),
                 "code": rule.get("code", ""),
                 "created_at": datetime.now(),
                 "updated_at": datetime.now()
@@ -302,4 +267,96 @@ class DatabaseService:
         
         if rules_to_insert:
             await db.rules.insert_many(rules_to_insert)
-            logger.info(f"已迁移 {len(rules_to_insert)} 个规则到数据库") 
+            logger.info(f"已迁移 {len(rules_to_insert)} 个规则到数据库")
+    
+    @staticmethod
+    async def get_all_schemes() -> List[Dict[str, Any]]:
+        """获取所有方案"""
+        db = get_database()
+        cursor = db.schemes.find({})
+        schemes = await cursor.to_list(length=None)
+        
+        # 移除MongoDB的_id字段
+        for scheme in schemes:
+            scheme.pop("_id", None)
+        
+        return schemes
+    
+    @staticmethod
+    async def get_scheme_by_id(scheme_id: str) -> Optional[Dict[str, Any]]:
+        """根据ID获取方案"""
+        db = get_database()
+        scheme = await db.schemes.find_one({"id": scheme_id})
+        
+        if scheme:
+            scheme.pop("_id", None)
+        
+        return scheme
+    
+    @staticmethod
+    async def create_scheme(scheme_data: Dict[str, Any]) -> Dict[str, Any]:
+        """创建新方案"""
+        db = get_database()
+        
+        # 准备方案数据
+        scheme = {
+            "id": scheme_data["id"],
+            "name": scheme_data["name"],
+            "description": scheme_data.get("description", ""),
+            "rule_weights": scheme_data.get("rule_weights", {}),  # 存储完整的规则配置
+            "created_at": datetime.now(),
+            "updated_at": datetime.now()
+        }
+        
+        # 插入数据库
+        await db.schemes.insert_one(scheme)
+        
+        # 移除MongoDB的_id字段
+        scheme.pop("_id", None)
+        
+        return scheme
+    
+    @staticmethod
+    async def update_scheme(scheme_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """更新方案"""
+        db = get_database()
+        
+        # 获取方案
+        scheme = await DatabaseService.get_scheme_by_id(scheme_id)
+        if not scheme:
+            return None
+        
+        # 准备更新数据
+        update_fields = {}
+        if "name" in update_data:
+            update_fields["name"] = update_data["name"]
+        if "description" in update_data:
+            update_fields["description"] = update_data["description"]
+        if "rule_weights" in update_data:
+            update_fields["rule_weights"] = update_data["rule_weights"]
+        
+        # 添加更新时间
+        update_fields["updated_at"] = datetime.now()
+        
+        # 更新数据库
+        await db.schemes.update_one(
+            {"id": scheme_id},
+            {"$set": update_fields}
+        )
+        
+        # 获取更新后的方案
+        return await DatabaseService.get_scheme_by_id(scheme_id)
+    
+    @staticmethod
+    async def delete_scheme(scheme_id: str) -> bool:
+        """删除方案"""
+        db = get_database()
+        
+        # 获取方案
+        scheme = await DatabaseService.get_scheme_by_id(scheme_id)
+        if not scheme:
+            return False
+        
+        # 删除方案
+        result = await db.schemes.delete_one({"id": scheme_id})
+        return result.deleted_count > 0 

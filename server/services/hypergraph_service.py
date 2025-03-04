@@ -60,65 +60,70 @@ class HypergraphService:
                 self.shared_elements[element_id] = element
                 self.shared_elements_by_type[element_type].append(element)
         
-        # 初始化规则 - 使用新的函数式规则
+        # 初始化规则 - 使用参数化的规则
         
-        # 1. 季节匹配规则（秋季）
+        # 1. 季节匹配规则（参数化）
         rule_season = Rule(
             name="季节匹配",
-            rule_function=lambda attrs: 1.0 if "秋" in attrs.get("季节", []) else 0.0,
+            rule_function=lambda attrs, params: 1.0 if params.get("season", "秋") in attrs.get("季节", []) else 0.0,
             weight=1.0,
             affected_element_keys=["季节"],
             affected_element_types=["景点"],
-            description="匹配适合秋季游览的景点",
-            code="if '秋' in attrs.get('季节', []):\n    return 1.0\nreturn 0.0"
+            description="匹配适合某个季节游览的景点",
+            code="if params.get('season', '秋') in attrs.get('季节', []):\n    return 1.0\nreturn 0.0",
+            parameters={"season": "秋"}  # 默认参数
         )
         self.shared_rules["rule_season"] = rule_season
         
-        # 2. 经济型住宿规则
+        # 2. 经济型住宿规则（参数化）
         rule_budget = Rule(
             name="经济型住宿",
-            rule_function=lambda attrs: 1.0 if attrs.get("价格", 0) < 500 else 0.0,
+            rule_function=lambda attrs, params: 1.0 if attrs.get("价格", 0) < params.get("max_price", 500) else 0.0,
             weight=1.0,
             affected_element_keys=["价格"],
             affected_element_types=["住宿"],
-            description="选择价格低于500元的经济型住宿",
-            code="if attrs.get('价格', 0) < 500:\n    return 1.0\nreturn 0.0"
+            description="选择价格低于指定值的经济型住宿",
+            code="if attrs.get('价格', 0) < params.get('max_price', 500):\n    return 1.0\nreturn 0.0",
+            parameters={"max_price": 500}  # 默认参数
         )
         self.shared_rules["rule_budget"] = rule_budget
         
-        # 3. 高评分规则
+        # 3. 高评分规则（参数化）
         rule_rating = Rule(
             name="高评分",
-            rule_function=lambda attrs: attrs.get("评分", 0) if attrs.get("评分", 0) >= 4.5 else 0.0,
+            rule_function=lambda attrs, params: attrs.get("评分", 0) if attrs.get("评分", 0) >= params.get("min_rating", 4.5) else 0.0,
             weight=1.5,
             affected_element_keys=["评分"],
             affected_element_types=["景点", "美食", "住宿"],
-            description="选择评分高于4.5的高品质选项",
-            code="rating = attrs.get('评分', 0)\nif rating >= 4.5:\n    return rating\nreturn 0.0"
+            description="选择评分高于指定值的高品质选项",
+            code="rating = attrs.get('评分', 0)\nif rating >= params.get('min_rating', 4.5):\n    return 1.0\nreturn 0.0",
+            parameters={"min_rating": 4.5}  # 默认参数
         )
         self.shared_rules["rule_rating"] = rule_rating
         
-        # 4. 本地特色美食规则
+        # 4. 本地特色美食规则（参数化）
         rule_local_food = Rule(
             name="本地特色美食",
-            rule_function=lambda attrs: 1.2 if "本地特色" in attrs.get("标签", []) else 0.0,
+            rule_function=lambda attrs, params: 1.0 if params.get("tag", "本地特色") in attrs.get("标签", []) else 0.0,
             weight=1.2,
             affected_element_keys=["标签"],
             affected_element_types=["美食"],
             description="选择具有本地特色的美食",
-            code="if '本地特色' in attrs.get('标签', []):\n    return 1.2\nreturn 0.0"
+            code="tag = attrs.get('标签', [])\nif params.get('tag', '本地特色') in tag:\n    return 1.0\nreturn 0.0",
+            parameters={"tag": "本地特色"}
         )
         self.shared_rules["rule_local_food"] = rule_local_food
         
-        # 5. 交通便利规则
+        # 5. 交通便利规则（参数化）
         rule_transport = Rule(
             name="交通便利",
-            rule_function=lambda attrs: 1.0 if attrs.get("距离地铁", 10000) < 1000 else 0.0,
+            rule_function=lambda attrs, params: 1.0 if attrs.get("距离地铁", 10000) < params.get("distance_to_subway", 1000) else 0.0,
             weight=0.8,
             affected_element_keys=["距离地铁"],
             affected_element_types=["住宿"],
             description="选择距离地铁站近的住宿",
-            code="if attrs.get('距离地铁', 10000) < 1000:\n    return 1.0\nreturn 0.0"
+            code="if attrs.get('距离地铁', 10000) < params.get('distance_to_subway', 1000):\n    return 1.0\nreturn 0.0",
+            parameters={"distance_to_subway": 1000}
         )
         self.shared_rules["rule_transport"] = rule_transport
     
@@ -174,7 +179,7 @@ class HypergraphService:
     async def create_rule_async(self, name: str, weight: float = 1.0, 
                                affected_element_types: List[str] = None,
                                affected_element_keys: List[str] = None,
-                               description: str = "", code: str = "") -> Dict[str, Any]:
+                               description: str = "", code: str = "", parameters: Dict[str, Any] = {}) -> Dict[str, Any]:
         """异步创建新的共享规则"""
         rule_data = {
             "name": name,
@@ -182,7 +187,8 @@ class HypergraphService:
             "affected_element_types": affected_element_types or [],
             "affected_element_keys": affected_element_keys or [],
             "description": description,
-            "code": code
+            "code": code,
+            "parameters": parameters
         }
         return await DatabaseService.create_rule(rule_data)
     
@@ -207,6 +213,9 @@ class HypergraphService:
         
         if hasattr(rule_data, "code") and rule_data.code is not None:
             update_data["code"] = rule_data.code
+        
+        if hasattr(rule_data, "parameters") and rule_data.parameters is not None:
+            update_data["parameters"] = rule_data.parameters
         
         return await DatabaseService.update_rule(rule_id, update_data)
     
@@ -669,9 +678,9 @@ class HypergraphService:
     def create_rule_function(self, code_str):
         """创建规则函数，接受规则代码字符串，返回一个函数"""
         try:
-            # 将代码包装在函数中
+            # 将代码包装在函数中，接受两个参数：attrs 和 params
             wrapped_code = f"""
-def rule_function(attrs):
+def rule_function(attrs, params):
 {textwrap.indent(code_str, '    ')}
 """
             # 创建一个局部命名空间
@@ -684,7 +693,7 @@ def rule_function(attrs):
             return local_vars["rule_function"]
         except Exception as e:
             print(f"创建规则函数失败: {e}")
-            return lambda attrs: 0.0
+            return lambda attrs, params: 0.0
 
     async def calculate_scheme_rule_hyperedges(self) -> List[Dict[str, Any]]:
         """计算方案到规则的超边，表示每个方案使用的所有规则"""
@@ -745,96 +754,103 @@ def rule_function(attrs):
         hypergraph.add_scheme(scheme)
         
         return scheme.to_dict()
-
-    async def create_scheme_standalone(self, name: str, description: str = "", rule_weights: Dict[str, float] = None) -> Optional[Dict[str, Any]]:
-        """创建独立的方案，不关联到特定超图"""
-        # 创建方案对象
-        scheme = Scheme(name, description, rule_weights)
-        
-        # 将方案存储在服务中
-        if not hasattr(self, 'standalone_schemes'):
-            self.standalone_schemes = {}
-        
-        self.standalone_schemes[scheme.id] = scheme
-        
-        # 计算该方案的规则-要素超边
-        scheme_rule_hyperedge = None
-        rule_element_hyperedges = []
-        
+    
+    async def generate_scheme_details(self, scheme: Scheme) -> Dict[str, Any]:
+        """生成方案的详细信息"""
         # 获取所有规则
         rules = await self.get_all_rules_async()
         rules_dict = {rule["id"]: rule for rule in rules}
         
         # 创建方案-规则超边
-        if rule_weights:
-            scheme_rule_hyperedge = SchemeRuleHyperedge(scheme.id, scheme.name)
+        scheme_rule_hyperedge = SchemeRuleHyperedge(scheme.id, scheme.name)
+        
+        # 添加方案使用的规则
+        for rule_id, rule_config in scheme.rule_weights.items():
+            if rule_id in rules_dict:
+                # 处理两种可能的格式：简单的数字权重或包含权重和参数的对象
+                if isinstance(rule_config, (int, float)):
+                    weight = rule_config
+                else:
+                    weight = rule_config.get("weight", 1.0)
+                
+                scheme_rule_hyperedge.add_rule(rules_dict[rule_id], weight)
+        
+        # 计算规则-要素超边
+        rule_element_hyperedges = []
+        
+        # 获取所有要素
+        elements_by_type = await self.get_all_elements_async()
+        all_elements = []
+        for element_list in elements_by_type.values():
+            all_elements.extend(element_list)
+        
+        # 对每个规则，计算其影响的要素
+        for rule_id, rule_config in scheme.rule_weights.items():
+            if rule_id not in rules_dict:
+                continue
             
-            # 添加方案使用的规则
-            for rule_id, weight in rule_weights.items():
-                if rule_id in rules_dict:
-                    scheme_rule_hyperedge.add_rule(rules_dict[rule_id], weight)
+            rule_data = rules_dict[rule_id]
             
-            # 获取所有要素
-            elements_by_type = await self.get_all_elements_async()
-            all_elements = []
-            for element_list in elements_by_type.values():
-                all_elements.extend(element_list)
+            # 获取权重和参数
+            weight = rule_config if isinstance(rule_config, (int, float)) else rule_config.get("weight", 1.0)
+            parameter_values = {} if isinstance(rule_config, (int, float)) else rule_config.get("parameters", {})
             
-            # 对每个规则，计算其影响的要素
-            for rule_id, weight in rule_weights.items():
-                if rule_id not in rules_dict:
+            # 创建规则函数
+            rule_function = None
+            if "code" in rule_data and rule_data["code"]:
+                try:
+                    rule_function = self.create_rule_function(rule_data["code"])
+                except Exception as e:
+                    print(f"编译规则 {rule_id} 代码失败: {e}")
                     continue
-                    
-                rule_data = rules_dict[rule_id]
+            
+            # 创建规则对象
+            rule = Rule(
+                name=rule_data["name"],
+                rule_function=rule_function,
+                weight=rule_data.get("weight", 1.0),
+                affected_element_keys=rule_data.get("affected_element_keys", []),
+                affected_element_types=rule_data.get("affected_element_types", []),
+                description=rule_data.get("description", ""),
+                code=rule_data.get("code", ""),
+                parameters=rule_data.get("parameters", {})  # 默认参数
+            )
+            
+            # 创建规则-要素超边
+            hyperedge = RuleElementHyperedge(rule_id, rule_data["name"])
+            
+            # 对每个要素，检查是否满足规则
+            matched_elements = 0
+            for element in all_elements:
+                # 应用规则，传入参数值
+                rule_score = rule.apply(element, parameter_values)
                 
-                # 创建规则函数
-                rule_function = None
-                if "code" in rule_data and rule_data["code"]:
-                    try:
-                        rule_function = self.create_rule_function(rule_data["code"])
-                    except Exception as e:
-                        print(f"编译规则 {rule_id} 代码失败: {e}")
-                        continue
-                
-                # 创建规则对象
-                rule = Rule(
-                    name=rule_data["name"],
-                    rule_function=rule_function,
-                    weight=rule_data.get("weight", 1.0),
-                    affected_element_keys=rule_data.get("affected_element_keys", []),
-                    affected_element_types=rule_data.get("affected_element_types", []),
-                    description=rule_data.get("description", ""),
-                    code=rule_data.get("code", "")
-                )
-                
-                # 创建规则-要素超边
-                hyperedge = RuleElementHyperedge(rule_id, rule_data["name"])
-                
-                # 对每个要素，检查是否满足规则
-                matched_elements = 0
-                for element in all_elements:
-                    # 应用规则
-                    score = rule.apply(element)
-                    
-                    # 如果得分大于0，则要素满足规则
-                    if score > 0:
-                        hyperedge.add_element(element, score)
-                        matched_elements += 1
-                
-                print(f"规则 {rule_data['name']} 匹配到 {matched_elements} 个要素")
-                
-                # 如果超边包含要素，则添加到列表
-                if hyperedge.elements:
-                    rule_element_hyperedges.append(hyperedge.to_dict())
+                # 如果得分大于0，则要素满足规则
+                if rule_score > 0:
+                    hyperedge.add_element(element, rule_score)
+                    matched_elements += 1
+            
+            if matched_elements > 0:
+                rule_element_hyperedges.append(hyperedge.to_dict())
         
-        # 返回方案信息和相关超边
-        result = scheme.to_dict()
-        if scheme_rule_hyperedge and scheme_rule_hyperedge.rules:
-            result["scheme_rule_hyperedge"] = scheme_rule_hyperedge.to_dict()
-        if rule_element_hyperedges:
-            result["rule_element_hyperedges"] = rule_element_hyperedges
+        # 返回方案数据
+        return {
+            **scheme.to_dict(),
+            "scheme_rule_hyperedge": scheme_rule_hyperedge.to_dict(),
+            "rule_element_hyperedges": rule_element_hyperedges
+        }
+
+    async def create_scheme_standalone(self, name: str, description: str = "", rule_weights: Dict[str, Any] = None) -> Dict[str, Any]:
+        """创建独立的方案，不关联到特定超图"""
+        # 创建方案对象
+        scheme = Scheme(name, description, rule_weights)
         
-        return result
+        # 将方案存储到数据库
+        scheme_data = scheme.to_dict()
+        await DatabaseService.create_scheme(scheme_data)
+        await self.generate_scheme_details(scheme)
+        
+        
 
     async def evaluate_scheme_standalone(self, scheme_id: str) -> Dict[str, Any]:
         """评估独立的方案，不关联到特定超图"""
@@ -867,11 +883,15 @@ def rule_function(attrs):
             element_rule_scores = {}
             
             # 对每个规则进行评估
-            for rule_id, weight in rule_weights.items():
+            for rule_id, rule_config in rule_weights.items():
                 if rule_id not in rules_dict:
                     continue
                     
                 rule_data = rules_dict[rule_id]
+                
+                # 获取权重和参数
+                weight = rule_config if isinstance(rule_config, (int, float)) else rule_config.get("weight", 1.0)
+                parameter_values = {} if isinstance(rule_config, (int, float)) else rule_config.get("parameters", {})
                 
                 # 创建规则函数
                 rule_function = None
@@ -890,11 +910,12 @@ def rule_function(attrs):
                     affected_element_keys=rule_data.get("affected_element_keys", []),
                     affected_element_types=rule_data.get("affected_element_types", []),
                     description=rule_data.get("description", ""),
-                    code=rule_data.get("code", "")
+                    code=rule_data.get("code", ""),
+                    parameters=rule_data.get("parameters", {})  # 默认参数
                 )
                 
-                # 应用规则
-                rule_score = rule.apply(element)
+                # 应用规则，传入参数值
+                rule_score = rule.apply(element, parameter_values)
                 if rule_score > 0:
                     # 应用权重
                     weighted_score = rule_score * weight
@@ -917,4 +938,20 @@ def rule_function(attrs):
             "scheme_description": scheme.description,
             "scheme_score": total_score,
             "selected_elements": selected_elements
-        } 
+        }
+
+    async def get_all_schemes_async(self) -> List[Dict[str, Any]]:
+        """异步获取所有方案"""
+        return await DatabaseService.get_all_schemes()
+
+    async def get_scheme_by_id_async(self, scheme_id: str) -> Optional[Dict[str, Any]]:
+        """异步获取特定方案"""
+        return await DatabaseService.get_scheme_by_id(scheme_id)
+
+    async def update_scheme_async(self, scheme_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """异步更新方案"""
+        return await DatabaseService.update_scheme(scheme_id, update_data)
+
+    async def delete_scheme_async(self, scheme_id: str) -> bool:
+        """异步删除方案"""
+        return await DatabaseService.delete_scheme(scheme_id) 

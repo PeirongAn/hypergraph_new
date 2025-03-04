@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Body, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from routes.hypergraph import router as hypergraph_router
-from routes.scheme import router as scheme_router
 import uvicorn
 import logging
 from database import connect_to_mongodb, close_mongodb_connection

@@ -51,6 +51,9 @@ const AppSidebar: React.FC = () => {
         <Menu.Item key="scheme-generator" icon={<ExperimentOutlined />}>
           <Link to="/scheme-generator">方案生成器</Link>
         </Menu.Item>
+        <Menu.Item key="scheme-preview" icon={<ExperimentOutlined />}>
+          <Link to="/schemes/preview">方案预览</Link>
+        </Menu.Item>
       </Menu>
     </Sider>
   );

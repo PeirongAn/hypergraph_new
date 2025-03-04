@@ -80,21 +80,36 @@ export const hypergraphApi = {
   },
   
   // 获取超图的所有方案
-  getAllSchemes: async (hypergraphId: string) => {
-    const response = await api.get(`/api/hypergraph/${hypergraphId}/schemes`);
-    return response.data;
+  getAllSchemes: async () => {
+    try {
+      const response = await api.get('/api/hypergraph/schemes');
+      return response.data;
+    } catch (error) {
+      console.error('获取所有方案失败:', error);
+      throw error;
+    }
   },
   
-  // 评估超图的特定方案
-  evaluateScheme: async (hypergraphId: string, schemeId: string) => {
-    const response = await api.get(`/api/hypergraph/${hypergraphId}/schemes/${schemeId}/evaluate`);
-    return response.data;
+  // 获取特定方案
+  getSchemeById: async (schemeId: string) => {
+    try {
+      const response = await api.get(`/api/hypergraph/schemes/${schemeId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`获取方案 ${schemeId} 失败:`, error);
+      throw error;
+    }
   },
   
-  // 评估超图的所有方案
-  evaluateAllSchemes: async (hypergraphId: string) => {
-    const response = await api.get(`/api/hypergraph/${hypergraphId}/schemes/evaluate-all`);
-    return response.data;
+  // 评估方案
+  evaluateScheme: async (schemeId: string) => {
+    try {
+      const response = await api.get(`/api/hypergraph/schemes/${schemeId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`评估方案 ${schemeId} 失败:`, error);
+      throw error;
+    }
   },
   
   // 获取所有共享要素
@@ -184,9 +199,14 @@ export const hypergraphApi = {
   },
   
   // 创建新方案
-  createScheme: async (schemeData: any) => {
-    const response = await api.post('/api/hypergraph/schemes', schemeData);
-    return response.data;
+  async createScheme(schemeData: any) {
+    try {
+      const response = await api.post('/api/hypergraph/schemes', schemeData);
+      return response.data;
+    } catch (error) {
+      console.error('创建方案失败:', error);
+      throw error;
+    }
   },
 };
 

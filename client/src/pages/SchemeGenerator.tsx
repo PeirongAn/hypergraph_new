@@ -11,15 +11,15 @@ const SchemeGenerator: React.FC = () => {
   const [form] = Form.useForm();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
-  const [ruleWeights, setRuleWeights] = useState<Record<string, number>>({});
+  const [ruleConfigs, setRuleConfigs] = useState<Record<string, any>>({});
   
-  const handleRulesSelected = (selectedRuleWeights: Record<string, number>) => {
-    setRuleWeights(selectedRuleWeights);
+  const handleRulesSelected = (selectedRuleConfigs: Record<string, any>) => {
+    setRuleConfigs(selectedRuleConfigs);
   };
   
   const handleSubmit = async (values: any) => {
     // 确保至少选择了一个规则
-    if (Object.keys(ruleWeights).length === 0) {
+    if (Object.keys(ruleConfigs).length === 0) {
       message.warning('请至少选择一个规则');
       return;
     }
@@ -31,7 +31,7 @@ const SchemeGenerator: React.FC = () => {
       const schemeData = {
         name: values.name,
         description: values.description || '',
-        rule_weights: ruleWeights
+        rule_weights: ruleConfigs  // 包含权重和参数的完整规则配置
       };
       
       // 调用API创建方案
@@ -50,10 +50,10 @@ const SchemeGenerator: React.FC = () => {
   };
   
   return (
-    <div>
+    <div className="p-6">
       <Card>
-        <Title level={3}>基于规则生成方案</Title>
-        <Text>选择规则并设置权重，快速创建新方案</Text>
+        <Title level={2}>创建新方案</Title>
+        <Text>定义方案名称、描述，并选择要应用的规则</Text>
         
         <Divider />
         

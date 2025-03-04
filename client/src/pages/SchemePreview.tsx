@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Typography, List, Tag, Button, Divider, Spin, Empty } from 'antd';
-import { ArrowRightOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Typography, List, Tag, Button, Divider, Spin, Empty, message } from 'antd';
+import { ArrowRightOutlined, CheckCircleOutlined, AppstoreOutlined, PlusOutlined } from '@ant-design/icons';
+import { hypergraphApi } from '../services/api';
 
 const { Title, Text } = Typography;
 
@@ -9,12 +10,82 @@ const SchemePreview: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [loading, setLoading] = useState<boolean>(false);
+  const [allSchemes, setAllSchemes] = useState<any[]>([]);
+  const [activeSchemeId, setActiveSchemeId] = useState<string | null>(null);
+  const [activeSchemeDetails, setActiveSchemeDetails] = useState<any>(null);
   
   // 从location.state获取方案数据
   const schemeData = location.state?.schemeData;
+  const isNewScheme = location.state?.isNewScheme;
+  
+  // 获取所有方案
+  useEffect(() => {
+    const fetchAllSchemes = async () => {
+      setLoading(true);
+      try {
+        const schemes = await hypergraphApi.getAllSchemes();
+        console.log('获取到的所有方案:', schemes);
+        setAllSchemes(schemes);
+        
+        // 如果是新生成的方案，则优先显示它
+        if (isNewScheme && schemeData) {
+          setActiveSchemeId(schemeData.id);
+        } else if (!activeSchemeId && schemes.length > 0) {
+          setActiveSchemeId(schemes[0].id);
+        }
+      } catch (error) {
+        console.error('获取方案失败:', error);
+        message.error('获取方案列表失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchAllSchemes();
+  }, [schemeData, isNewScheme]);
+  
+  // 当活动方案ID改变时，获取方案详情
+  useEffect(() => {
+    const fetchSchemeDetails = async () => {
+      if (!activeSchemeId) return;
+      
+      setLoading(true);
+      try {
+        // 评估方案以获取详细信息
+        const result = await hypergraphApi.evaluateScheme(activeSchemeId);
+        console.log('方案详情:', result);
+        setActiveSchemeDetails(result);
+        
+        // 更新方案列表中的评分
+        setAllSchemes(prevSchemes => 
+          prevSchemes.map(scheme => 
+            scheme.id === activeSchemeId 
+              ? { ...scheme, scheme_score: result.scheme_score }
+              : scheme
+          )
+        );
+      } catch (error) {
+        console.error('获取方案详情失败:', error);
+        message.error('获取方案详情失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSchemeDetails();
+  }, [activeSchemeId]);
+  
+  // 如果正在加载，显示加载状态
+  if (loading && !activeSchemeDetails) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <Spin size="large" tip="加载方案数据..." />
+      </div>
+    );
+  }
   
   // 如果没有方案数据，显示空状态
-  if (!schemeData) {
+  if (allSchemes.length === 0) {
     return (
       <div style={{ padding: '20px' }}>
         <Card>
@@ -23,7 +94,11 @@ const SchemePreview: React.FC = () => {
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
-            <Button type="primary" onClick={() => navigate('/schemes/create')}>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              onClick={() => navigate('/scheme-generator')}
+            >
               创建新方案
             </Button>
           </div>
@@ -32,140 +107,188 @@ const SchemePreview: React.FC = () => {
     );
   }
   
-  // 提取方案、规则和要素数据
-  const scheme = schemeData;
-  const schemeRuleHyperedge = scheme.scheme_rule_hyperedge || { rules: [] };
-  const ruleElementHyperedges = scheme.rule_element_hyperedges || [];
-  
+
+  // 获取方案使用的规则
+  const schemeRules = activeSchemeDetails?.scheme_rule_hyperedge?.rules || [];
   // 获取所有要素
-  const allElements: any[] = [];
-  ruleElementHyperedges.forEach((hyperedge: any) => {
-    hyperedge.elements.forEach((element: any) => {
-      if (!allElements.some(e => e.id === element.id)) {
-        allElements.push(element);
-      }
-    });
-  });
+  const selectedElements = activeSchemeDetails?.rule_element_hyperedges.map((hyperedge: any) => hyperedge.elements).flat() || [];
+  console.log("++++++++++++++++",schemeRules)
+  console.log("++++++++++++++++",selectedElements)
+  
+  // 处理方案激活
+  const handleSchemeActivate = async (schemeId: string) => {
+    if (schemeId === activeSchemeId) return;
+    setActiveSchemeId(schemeId);
+  };
+  
+
+  
+  function getRuleElementTypes(rule_id: string): string[] {
+    const rule = activeSchemeDetails?.rule_element_hyperedges.find((rule: any) => rule.rule_id === rule_id);
+    if (!rule) return [];
+    return Array.from(new Set(rule.elements.map((element: any) => element.element_type)));
+  }
+
   return (
     <div style={{ padding: '20px' }}>
-      <Title level={2}>方案预览</Title>
-      <Text>查看方案、规则和要素之间的关系</Text>
-      
-      <Divider />
-      
-      <Row gutter={16}>
-        {/* 方案列 */}
-        <Col span={8}>
-          <Card 
-            title={<Title level={4}>方案</Title>} 
-            style={{ height: '100%' }}
-            headStyle={{ backgroundColor: '#f0f5ff', borderBottom: '2px solid #1890ff' }}
-          >
-            <div style={{ marginBottom: '16px' }}>
-              <Title level={5}>{scheme.name}</Title>
-              <Text type="secondary">{scheme.description || '无描述'}</Text>
-            </div>
-            
-            <Divider dashed />
-            
-            <div>
-              <Text strong>创建时间：</Text>
-              <Text>{new Date(scheme.created_at).toLocaleString()}</Text>
-            </div>
-            
-            <div style={{ marginTop: '8px' }}>
-              <Text strong>规则数量：</Text>
-              <Text>{schemeRuleHyperedge.rules?.length || 0}</Text>
-            </div>
-            
-            <div style={{ marginTop: '8px' }}>
-              <Text strong>影响要素数量：</Text>
-              <Text>{allElements.length}</Text>
-            </div>
-          </Card>
-        </Col>
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <Title level={2}>方案预览</Title>
+          
+          <div>
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              onClick={() => navigate('/scheme-generator')}
+            >
+              创建新方案
+            </Button>
+          </div>
+        </div>
         
-        {/* 规则列 */}
-        <Col span={8}>
-          <Card 
-            title={<Title level={4}>规则 <ArrowRightOutlined /></Title>} 
-            style={{ height: '100%' }}
-            headStyle={{ backgroundColor: '#f6ffed', borderBottom: '2px solid #52c41a' }}
-          >
-            <List
-              itemLayout="vertical"
-              dataSource={schemeRuleHyperedge.rules || []}
-              renderItem={(rule: any) => (
-                <List.Item>
-                  <div>
-                    <Title level={5}>{rule.name}</Title>
-                    <Text type="secondary">{rule.description || '无描述'}</Text>
-                  </div>
-                  
-                  <div style={{ marginTop: '8px' }}>
-                    <Text strong>权重：</Text>
-                    <Tag color="green">{rule.weight}</Tag>
-                  </div>
-                  
-                  <div style={{ marginTop: '8px' }}>
-                    <Text strong>影响要素类型：</Text>
-                    {rule.affected_element_types?.map((type: string) => (
-                      <Tag key={type}>{type}</Tag>
-                    ))}
-                  </div>
-                </List.Item>
-              )}
-            />
-          </Card>
-        </Col>
+        <Divider />
         
-        {/* 要素列 */}
-        <Col span={8}>
-          <Card 
-            title={<Title level={4}>要素 <CheckCircleOutlined /></Title>} 
-            style={{ height: '100%' }}
-            headStyle={{ backgroundColor: '#fff7e6', borderBottom: '2px solid #fa8c16' }}
-          >
-            <List
-              itemLayout="vertical"
-              dataSource={allElements}
-              renderItem={(element: any) => (
-                <List.Item>
-                  <div className='flex justify-between'>
-                    <Title level={5}>{element.element_name}</Title>
-                    <Tag color="blue">{element.element_type}</Tag>
-                  </div>
-                  
-                  <div style={{ marginTop: '8px' }}>
-                    {Object.entries(element.attributes || {})
-                      .filter(([key]) => key !== 'id' && key !== 'name' && key !== 'type')
-                      .map(([key, value]: [string, any]) => (
-                        <div key={key}>
-                          <Text strong>{key}：</Text>
-                          <Text>{Array.isArray(value) ? value.join(', ') : value}</Text>
-                        </div>
-                      ))
-                    }
-                  </div>
-                  
-                  {/* {element.score && (
-                    <div style={{ marginTop: '8px' }}>
-                      <Text strong>得分：</Text>
-                      <Tag color="orange">{element.score.toFixed(2)}</Tag>
+        <Row gutter={16}>
+          {/* 方案列 */}
+          <Col span={8}>
+            <Card 
+              title={<Title level={4}>方案 <AppstoreOutlined /></Title>} 
+              style={{ height: '100%' }}
+              headStyle={{ backgroundColor: '#f0f5ff', borderBottom: '2px solid #1890ff' }}
+            >
+              <div style={{ maxHeight: 'calc(100vh - 250px)', overflowY: 'auto' }}>
+                {allSchemes.map(scheme => (
+                  <div 
+                    key={scheme.id} 
+                    style={{ 
+                      padding: '12px', 
+                      marginBottom: '12px', 
+                      border: scheme.id === activeSchemeId ? '2px solid #1890ff' : '1px solid #d9d9d9',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      backgroundColor: scheme.id === activeSchemeId ? '#f0f5ff' : 'white'
+                    }}
+                    onClick={() => handleSchemeActivate(scheme.id)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Title level={5} style={{ margin: 0 }}>{scheme.name}</Title>
+                      {scheme.scheme_score && (
+                        <Tag color="green">{scheme.scheme_score.toFixed(2)}</Tag>
+                      )}
                     </div>
-                  )} */}
-                </List.Item>
+                    
+                    <Text type="secondary" ellipsis style={{ marginTop: '4px', display: 'block' }}>
+                      {scheme.description || '无描述'}
+                    </Text>
+                    
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'space-between' }}>
+                      <div>
+                        <Text strong>规则：</Text>
+                        <Tag color="blue">
+                          {(Object.keys(scheme.rule_weights || {}).length || 0)}
+                        </Tag>
+                      </div>
+                    </div>
+                    
+                    {scheme.id === activeSchemeId && (
+                      <div style={{ marginTop: '8px', textAlign: 'right' }}>
+                        <Tag color="blue">当前选中</Tag>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              
+            </Card>
+          </Col>
+          
+          {/* 规则列 */}
+          <Col span={8}>
+            <Card 
+              title={<Title level={4}>规则 <ArrowRightOutlined /></Title>} 
+              style={{ height: '100%' }}
+              headStyle={{ backgroundColor: '#e6f7ff', borderBottom: '2px solid #1890ff' }}
+            >
+              {loading && !schemeRules.length ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Spin tip="加载规则..." />
+                </div>
+              ) : schemeRules.length === 0 ? (
+                <Empty description="该方案没有规则" />
+              ) : (
+                <List
+                  itemLayout="vertical"
+                  dataSource={schemeRules}
+                  renderItem={(rule: any) => (
+                    <List.Item>
+                      <div>
+                        <Title level={5}>{rule.name}</Title>
+                        <Text type="secondary">{rule.description || '无描述'}</Text>
+                      </div>
+                      
+                      <div style={{ marginTop: '8px' }}>
+                        <Text strong>权重：</Text>
+                        <Tag color="green">{rule.weight}</Tag>
+                      </div>
+            
+                      <div style={{ marginTop: '8px' }}>
+                        <Text strong>影响要素类型：</Text>
+                        {getRuleElementTypes(rule.rule_id).map((type: string) => (
+                          <Tag key={type}>{type}</Tag>
+                        ))}
+                      </div>
+                    </List.Item>
+                  )}
+                />
               )}
-            />
-          </Card>
-        </Col>
-      </Row>
-      
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <Button type="primary" onClick={() => navigate('/schemes')}>
-          返回方案列表
-        </Button>
-      </div>
+            </Card>
+          </Col>
+          
+          {/* 要素列 */}
+          <Col span={8}>
+            <Card 
+              title={<Title level={4}>要素 <CheckCircleOutlined /></Title>} 
+              style={{ height: '100%' }}
+              headStyle={{ backgroundColor: '#fff7e6', borderBottom: '2px solid #fa8c16' }}
+            >
+              {loading && !selectedElements.length ? (
+                <div style={{ textAlign: 'center', padding: '20px' }}>
+                  <Spin tip="加载要素..." />
+                </div>
+              ) : selectedElements.length === 0 ? (
+                <Empty description="该方案没有匹配的要素" />
+              ) : (
+                <List
+                  itemLayout="vertical"
+                  dataSource={selectedElements}
+                  renderItem={(element: any) => (
+                    <List.Item>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <Title level={5}>{element.element_name || element.element_id}</Title>
+                        
+                      </div>
+                      <Tag color="blue">{element.element_type}</Tag>
+                      {/* <div style={{ marginTop: '8px' }}>
+                        {Object.entries(element || {})
+                          .filter(([key]) => key !== 'id' && key !== 'name' && key !== 'type')
+                          .map(([key, value]: [string, any]) => (
+                            <div key={key}>
+                              <Text strong>{key}：</Text>
+                              <Text>{Array.isArray(value) ? value.join(', ') : String(value)}</Text>
+                            </div>
+                          ))
+                        }
+                      </div>
+                       */}
+          
+                    </List.Item>
+                  )}
+                />
+              )}
+            </Card>
+          </Col>
+        </Row>
+      </Card>
     </div>
   );
 };

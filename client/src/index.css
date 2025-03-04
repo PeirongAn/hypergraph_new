@@ -1,6 +1,6 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+
+/* 您的其他自定义样式 */
 
 html, body, #root {
   height: 100vh;

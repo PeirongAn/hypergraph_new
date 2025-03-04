@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Body
 from typing import Dict, Any, List, Optional
+from models.hypergraph import Scheme
 from services.hypergraph_service import HypergraphService
+from models.db_models import ElementCreate, ElementUpdate, RuleCreate, RuleUpdate, SchemeCreate, SchemeUpdate
 from pydantic import BaseModel
 
 # 创建路由器
@@ -89,7 +91,8 @@ async def create_shared_rule(rule_data: RuleCreate):
         rule_data.affected_element_types,
         rule_data.affected_element_keys,
         rule_data.description,
-        rule_data.code
+        rule_data.code,
+        rule_data.parameters,
     )
 
 # 路由：更新共享规则
@@ -127,58 +130,55 @@ async def get_scheme_rule_hyperedges():
     """获取方案到规则的超边，表示每个方案使用的所有规则"""
     return await hypergraph_service.calculate_scheme_rule_hyperedges()
 
-
+# 路由：获取所有方案
 @router.get("/schemes", response_model=List[Dict[str, Any]])
 async def get_all_schemes():
-    """获取所有方案，不关联到特定超图"""
-    if not hasattr(hypergraph_service, 'standalone_schemes'):
-        hypergraph_service.standalone_schemes = {}
-    
-    schemes = [scheme.to_dict() for scheme in hypergraph_service.standalone_schemes.values()]
-    return schemes
+    """获取所有方案"""
+    return await hypergraph_service.get_all_schemes_async()
 
-# 路由：获取特定方案（独立于超图）
+# 路由：获取特定方案
 @router.get("/schemes/{scheme_id}", response_model=Dict[str, Any])
 async def get_scheme(scheme_id: str):
-    """获取特定方案，不关联到特定超图"""
-    if not hasattr(hypergraph_service, 'standalone_schemes'):
-        hypergraph_service.standalone_schemes = {}
-    
-    scheme = hypergraph_service.standalone_schemes.get(scheme_id)
+    """获取特定方案"""
+    scheme_data = await hypergraph_service.get_scheme_by_id_async(scheme_id)
+    print("++++++++++++++++",scheme_data)
+    scheme = Scheme(scheme_data['name'], scheme_data['description'], scheme_data['rule_weights'])
+
+    scheme_detail = await hypergraph_service.generate_scheme_details(
+        scheme
+    )
+    return scheme_detail
+
+# 路由：创建新方案
+@router.post("/schemes", response_model=Dict[str, Any])
+async def create_scheme(scheme_data: SchemeCreate):
+    """创建新方案"""
+    scheme = await hypergraph_service.generate_scheme_details(
+        scheme_data.name,
+        scheme_data.description,
+        scheme_data.rule_weights
+    )
+    return scheme
+
+# 路由：更新方案
+@router.put("/schemes/{scheme_id}", response_model=Dict[str, Any])
+async def update_scheme(scheme_id: str, scheme_data: SchemeUpdate):
+    """更新方案"""
+    scheme = await hypergraph_service.update_scheme_async(scheme_id, scheme_data.dict(exclude_unset=True))
     if not scheme:
         raise HTTPException(status_code=404, detail=f"方案 {scheme_id} 不存在")
-    
-    return scheme.to_dict()
+    return scheme
 
-# 路由：评估特定方案（独立于超图）
-@router.get("/schemes/{scheme_id}/evaluate", response_model=Dict[str, Any])
-async def evaluate_scheme(scheme_id: str):
-    """评估特定方案，不关联到特定超图"""
-    result = await hypergraph_service.evaluate_scheme_standalone(scheme_id)
-    if "error" in result:
-        raise HTTPException(status_code=404, detail=result["error"])
-    
-    return result
+# 路由：删除方案
+@router.delete("/schemes/{scheme_id}", response_model=Dict[str, str])
+async def delete_scheme(scheme_id: str):
+    """删除方案"""
+    success = await hypergraph_service.delete_scheme_async(scheme_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"方案 {scheme_id} 不存在")
+    return {"message": f"方案 {scheme_id} 已删除"}
 
-# 路由：创建新方案（独立于超图）
-@router.post("/schemes", response_model=Dict[str, Any], status_code=201)
-async def create_scheme(scheme_data: dict = Body(...)):
-    """创建新方案，不关联到特定超图"""
-    # 验证必要字段
-    if "name" not in scheme_data:
-        raise HTTPException(status_code=400, detail="方案名称不能为空")
-    
-    # 创建方案
-    scheme = await hypergraph_service.create_scheme_standalone(
-        scheme_data["name"],
-        scheme_data.get("description", ""),
-        scheme_data.get("rule_weights", {})
-    )
-    
-    if not scheme:
-        raise HTTPException(status_code=500, detail="创建方案失败")
-    
-    return scheme 
+# 路由：评估方案
 # 超图特定的路由
 # 这些路由应该在共享要素和规则路由之后定义
 
