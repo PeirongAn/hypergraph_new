@@ -15,6 +15,10 @@ import SchemeRuleHyperedgeListPage from './pages/SchemeRuleHyperedgeListPage';
 import SchemeRuleHyperedgePage from './pages/SchemeRuleHyperedgePage';
 import SchemeGenerator from './pages/SchemeGenerator';
 import SchemePreview from './pages/SchemePreview';
+import SchemeAnalysis from './pages/SchemeAnalysis';
+import SchemeDesigner from './pages/SchemeDesigner';
+import '@reactflow/core/dist/style.css';
+import 'reactflow/dist/style.css';
 import './App.css';
 
 const { Content } = Layout;
@@ -47,6 +51,8 @@ const App: React.FC = () => {
                 <Route path="/scheme-rule-hyperedges/:id" element={<SchemeRuleHyperedgePage />} />
                 <Route path="/scheme-generator" element={<SchemeGenerator />} />
                 <Route path="/schemes/preview" element={<SchemePreview />} />
+                <Route path="/scheme-analysis" element={<SchemeAnalysis />} />
+                <Route path="/scheme-designer" element={<SchemeDesigner />} />
               </Routes>
             </Content>
           </Layout>

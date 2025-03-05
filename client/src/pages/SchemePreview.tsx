@@ -3,6 +3,9 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, Row, Col, Typography, List, Tag, Button, Divider, Spin, Empty, message } from 'antd';
 import { ArrowRightOutlined, CheckCircleOutlined, AppstoreOutlined, PlusOutlined } from '@ant-design/icons';
 import { hypergraphApi } from '../services/api';
+import SchemeActions from '../components/SchemeActions';
+import RuleActions from '../components/RuleActions';
+import ElementActions from '../components/ElementActions';
 
 const { Title, Text } = Typography;
 
@@ -129,6 +132,27 @@ const SchemePreview: React.FC = () => {
     return Array.from(new Set(rule.elements.map((element: any) => element.element_type)));
   }
 
+  // 刷新数据
+  const refreshData = async () => {
+    setLoading(true);
+    try {
+      // 重新获取所有方案
+      const schemes = await hypergraphApi.getAllSchemes();
+      setAllSchemes(schemes);
+      
+      // 如果当前有活动方案，重新获取其详情
+      if (activeSchemeId) {
+        const result = await hypergraphApi.evaluateScheme(activeSchemeId);
+        setActiveSchemeDetails(result);
+      }
+    } catch (error) {
+      console.error('刷新数据失败:', error);
+      message.error('刷新数据失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   return (
     <div style={{ padding: '20px' }}>
       <Card>
@@ -172,9 +196,14 @@ const SchemePreview: React.FC = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <Title level={5} style={{ margin: 0 }}>{scheme.name}</Title>
-                      {scheme.scheme_score && (
-                        <Tag color="green">{scheme.scheme_score.toFixed(2)}</Tag>
-                      )}
+                      <div>
+                        {scheme.scheme_score && (
+                          <Tag color="green" style={{ marginRight: '8px' }}>
+                            {scheme.scheme_score.toFixed(2)}
+                          </Tag>
+                        )}
+                        <SchemeActions scheme={scheme} onSuccess={refreshData} />
+                      </div>
                     </div>
                     
                     <Text type="secondary" ellipsis style={{ marginTop: '4px', display: 'block' }}>
@@ -198,7 +227,6 @@ const SchemePreview: React.FC = () => {
                   </div>
                 ))}
               </div>
-              
             </Card>
           </Col>
           
@@ -220,7 +248,11 @@ const SchemePreview: React.FC = () => {
                   itemLayout="vertical"
                   dataSource={schemeRules}
                   renderItem={(rule: any) => (
-                    <List.Item>
+                    <List.Item
+                      actions={[
+                        <RuleActions key="actions" rule={rule} onSuccess={refreshData} />
+                      ]}
+                    >
                       <div>
                         <Title level={5}>{rule.name}</Title>
                         <Text type="secondary">{rule.description || '无描述'}</Text>
@@ -262,25 +294,15 @@ const SchemePreview: React.FC = () => {
                   itemLayout="vertical"
                   dataSource={selectedElements}
                   renderItem={(element: any) => (
-                    <List.Item>
+                    <List.Item
+                      actions={[
+                        <ElementActions key="actions" element={element} onSuccess={refreshData} />
+                      ]}
+                    >
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <Title level={5}>{element.element_name || element.element_id}</Title>
-                        
                       </div>
                       <Tag color="blue">{element.element_type}</Tag>
-                      {/* <div style={{ marginTop: '8px' }}>
-                        {Object.entries(element || {})
-                          .filter(([key]) => key !== 'id' && key !== 'name' && key !== 'type')
-                          .map(([key, value]: [string, any]) => (
-                            <div key={key}>
-                              <Text strong>{key}：</Text>
-                              <Text>{Array.isArray(value) ? value.join(', ') : String(value)}</Text>
-                            </div>
-                          ))
-                        }
-                      </div>
-                       */}
-          
                     </List.Item>
                   )}
                 />

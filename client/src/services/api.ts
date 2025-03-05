@@ -208,6 +208,39 @@ export const hypergraphApi = {
       throw error;
     }
   },
+  
+  // 更新方案
+  updateScheme: async (schemeId: string, schemeData: any) => {
+    try {
+      const response = await api.put(`/api/hypergraph/schemes/${schemeId}`, schemeData);
+      return response.data;
+    } catch (error) {
+      console.error(`更新方案 ${schemeId} 失败:`, error);
+      throw error;
+    }
+  },
+  
+  // 删除方案
+  deleteScheme: async (schemeId: string) => {
+    try {
+      const response = await api.delete(`/api/hypergraph/schemes/${schemeId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`删除方案 ${schemeId} 失败:`, error);
+      throw error;
+    }
+  },
+  
+  // 获取规则详情
+  getSharedRule: async (ruleId: string) => {
+    try {
+      const response = await api.get(`/api/hypergraph/rules/${ruleId}`);
+      return response.data;
+    } catch (error) {
+      console.error(`获取规则 ${ruleId} 详情失败:`, error);
+      throw error;
+    }
+  },
 };
 
 export default api;

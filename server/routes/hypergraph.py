@@ -95,6 +95,16 @@ async def create_shared_rule(rule_data: RuleCreate):
         rule_data.parameters,
     )
 
+@router.get("/rules/{rule_id}", response_model=Dict[str, Any])
+async def get_shared_rule(rule_id: str):
+    # 记录请求信息，帮助调试
+    print(f"获取规则请求: ID={rule_id}")
+    
+    result = await hypergraph_service.get_rule(rule_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"规则 {rule_id} 不存在")
+    return result
+
 # 路由：更新共享规则
 @router.put("/rules/{rule_id}", response_model=Dict[str, Any])
 async def update_shared_rule(rule_id: str, rule_data: RuleUpdate):

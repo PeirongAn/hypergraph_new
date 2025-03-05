@@ -335,6 +335,19 @@ class HypergraphService:
             
             self.shared_rules[rule_id] = rule
             return rule.to_dict()
+        
+    async def get_rule(self, rule_id: str) -> Optional[Dict[str, Any]]:
+        """获取特定规则"""
+        # search from db then
+        rule = self.shared_rules.get(rule_id)
+        if rule:
+            return rule.to_dict()
+        # then search from memory
+        rule = await DatabaseService.get_rule_by_id(rule_id)
+        if rule:
+            return rule
+        # then search from memory
+        return {}
     
     def update_rule(self, rule_id: str, rule_data: Any) -> Optional[Dict[str, Any]]:
         """更新共享规则"""
@@ -848,7 +861,7 @@ def rule_function(attrs, params):
         # 将方案存储到数据库
         scheme_data = scheme.to_dict()
         await DatabaseService.create_scheme(scheme_data)
-        await self.generate_scheme_details(scheme)
+        return await self.generate_scheme_details(scheme)
         
         
 

@@ -182,14 +182,15 @@ class DatabaseService:
     @staticmethod
     async def update_rule(rule_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """更新规则"""
-        if rule_id not in DatabaseService.rules:
+        rule = await DatabaseService.get_rule_by_id(rule_id=rule_id)
+        if not rule:
             return None
-        
+        db = get_database()
         # 更新规则字段
-        rule = DatabaseService.rules[rule_id]
         for key, value in update_data.items():
             rule[key] = value
-        
+        # 存入db        
+        await db.rules.update_one({"id": rule_id}, {"$set": rule})
         return rule
     
     @staticmethod
