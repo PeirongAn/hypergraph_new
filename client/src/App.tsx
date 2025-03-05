@@ -17,6 +17,11 @@ import SchemeGenerator from './pages/SchemeGenerator';
 import SchemePreview from './pages/SchemePreview';
 import SchemeAnalysis from './pages/SchemeAnalysis';
 import SchemeDesigner from './pages/SchemeDesigner';
+import HypergraphAnalytics from './pages/HypergraphAnalytics';
+import HypergraphSettings from './pages/HypergraphSettings';
+import EntityEditor from './pages/EntityEditor';
+import RuleEditor from './pages/RuleEditor';
+import SchemeOptimizer from './pages/SchemeOptimizer';
 import '@reactflow/core/dist/style.css';
 import 'reactflow/dist/style.css';
 import './App.css';
@@ -53,6 +58,11 @@ const App: React.FC = () => {
                 <Route path="/schemes/preview" element={<SchemePreview />} />
                 <Route path="/scheme-analysis" element={<SchemeAnalysis />} />
                 <Route path="/scheme-designer" element={<SchemeDesigner />} />
+                <Route path="/hypergraph-analytics" element={<HypergraphAnalytics />} />
+                <Route path="/hypergraph-settings" element={<HypergraphSettings />} />
+                <Route path="/entity-editor/:id?" element={<EntityEditor />} />
+                <Route path="/rule-editor/:id?" element={<RuleEditor />} />
+                <Route path="/scheme-optimizer" element={<SchemeOptimizer />} />
               </Routes>
             </Content>
           </Layout>
